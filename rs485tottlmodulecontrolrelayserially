@@ -1,0 +1,129 @@
+// actually what we do is we connect arduino with the rs485tottl module. and connect this rs485tottl module to rs485tousb to my computer. and send the serial data through my hercules and check whether my led is getting turn on and off. so in this what we
+// are doing is connect with the database. and check the relay data. if the relay data is 1 then ssend the ON/ command to arduino and turn on the relay. and if the data is 0 then send the OFF/ command to arduino and turn off the relay.
+import serial
+import time
+import mysql.connector
+
+# Arduino Serial Configuration
+serial_port = 'COM6'
+baud_rate = 9600
+ser = serial.Serial(serial_port, baud_rate, timeout=1)
+
+# MySQL Database Configuration
+db_config = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': '',
+    'database': 'jplearn'
+}
+
+# Function to send command to Arduino
+def send_command(command):
+    ser.write(command.encode())
+
+# Function to fetch relay value from database
+def get_relay_value():
+    try:
+        connection = mysql.connector.connect(**db_config)
+        cursor = connection.cursor()
+        cursor.execute("SELECT value FROM relaytable")
+        result = cursor.fetchone()
+        if result:
+            return result[0]
+    except mysql.connector.Error as error:
+        print("Error fetching data from MySQL:", error)
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+try:
+    while True:
+        relay_value = get_relay_value()
+        if relay_value is not None:
+            if relay_value == 1:
+                print("Sending command: ON")
+                send_command("ON\n")
+            elif relay_value == 0:
+                print("Sending command: OFF")
+                send_command("OFF\n")
+        time.sleep(2)
+
+except KeyboardInterrupt:
+    ser.close()
+
+//arduino code
+#include <SoftwareSerial.h>
+
+// Define GPIO Pins
+const byte RX_PIN = 7;
+const byte TX_PIN = 8;
+const byte LED_PIN = 13;
+
+SoftwareSerial Soft_Serial(RX_PIN, TX_PIN);
+
+String receivedString = ""; // Variable to store the received string
+
+void setup() {
+  Serial.begin(9600); // Initialize Serial Monitor
+  Soft_Serial.begin(9600); // Initialize Software Serial for communication with Hercules
+  
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW); // Initially turn off the LED
+
+  Serial.println("\n\nWelcome to JP Learning\n");
+  Serial.println("Receiver Start\n");
+
+  Serial.print("Initial LED state: ");
+  Serial.println(digitalRead(LED_PIN) == HIGH ? "ON" : "OFF");
+}
+
+void loop() {
+  if (Soft_Serial.available() > 0) {
+    receivedString = Soft_Serial.readStringUntil('\n');
+    processCommand(receivedString);
+  }
+}
+
+void processCommand(String command) 
+{
+  command.trim();
+  if (command.equals("ON")) {
+    digitalWrite(LED_PIN, HIGH); // Turn on the LED
+    Serial.println("\nLED is on");
+  }
+  else if (command.equals("OFF")) 
+  {
+    digitalWrite(LED_PIN, LOW); // Turn off the LED
+    Serial.println("\nLED is off");
+  }
+  else 
+  {
+    Serial.println("\nInvalid command received: " + command); // Print an error message for invalid commands
+  }
+}
+// also i can check this by sending the serial command from python
+import serial
+import time
+
+serial_port = 'COM6'
+baud_rate = 9600
+
+ser = serial.Serial(serial_port, baud_rate, timeout=1)
+
+def send_command(command):
+    ser.write(command.encode())
+
+time.sleep(2)
+
+try:
+    while True:
+        print("Sending command: ON")
+        send_command("ON\n")    
+        time.sleep(2)
+        print("Sending command: OFF")
+        send_command("OFF\n")
+        time.sleep(2)
+
+except KeyboardInterrupt:
+    ser.close()
